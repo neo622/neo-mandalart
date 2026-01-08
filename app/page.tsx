@@ -3,76 +3,196 @@
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Flex,
+  Spinner,
+  VStack,
+  Heading,
+  Text,
+  Button,
+  Center,
+  useToast,
+} from "@chakra-ui/react";
+import MandalartBoard_9x9 from "@/components/mandalart/MandalartBoard_9x9";
+
+// 데이터 타입 정의 (TODO: types 폴더로 빼기)
+interface MandalartData {
+  id: string;
+  title: string;
+  major_categories: any[];
+}
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [mandalart, setMandalart] = useState<MandalartData | null>(null);
+  const [loading, setLoading] = useState(true); // 초기 로딩 상태
+  const [creating, setCreating] = useState(false); // 생성 중 로딩 상태
+
   const router = useRouter();
   const supabase = createClient();
+  const toast = useToast();
 
+  // 초기 진입 시 로그인 체크 & DB 데이터 조회
   useEffect(() => {
-    // 페이지 로드 시 로그인된 사용자 정보 확인
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        // 로그인 안 했으면 로그인 페이지로 이동
-        router.push("/login");
-      } else {
+    const init = async () => {
+      try {
+        setLoading(true);
+
+        // 유저 확인
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          router.replace("/login");
+          return;
+        }
         setUser(user);
+
+        // 만다라트 데이터 확인
+        // major_categories와 sub_categories를 한 번에 가져옴
+        const { data, error } = await supabase
+          .from("mandalarts")
+          .select(
+            `
+            *,
+            major_categories (
+              *,
+              sub_categories (*)
+            )
+          `
+          )
+          .eq("user_id", user.id)
+          .single(); // 하나만 가져옴
+
+        if (error && error.code !== "PGRST116") {
+          console.error("데이터 조회 에러:", error);
+        }
+
+        if (data) {
+          setMandalart(data);
+        }
+      } catch (e) {
+        console.error("초기화 중 에러:", e);
+      } finally {
+        setLoading(false);
       }
     };
-    getUser();
+
+    init();
   }, [router, supabase]);
 
+  // 만다라트 생성 핸들러
   const handleCreateMandalart = async () => {
     if (!user) return;
-    setLoading(true);
+    setCreating(true);
 
     try {
-      // 1. 만다라트 메인 데이터 1개 생성
-      // user_id는 DB에서 알아서 'auth.uid()'로 채워주므로 안 보냄
+      // 메인 만다라트 생성 (DB 트리거가 나머지 데이터 자동 생성)
       const { data, error } = await supabase
         .from("mandalarts")
         .insert({
-          title: "2026년 나의 목표", // 임시 기본 제목
+          title: "NEO's 2026 Goal",
+          user_id: user.id,
         })
-        .select() // 생성된 데이터 반환
+        .select(
+          `
+            *,
+            major_categories (
+              *,
+              sub_categories (*)
+            )
+          `
+        )
         .single();
 
       if (error) throw error;
 
-      alert(`성공! 만다라트가 생성되었습니다.\nID: ${data.id}`);
-      console.log("생성된 만다라트:", data);
+      setMandalart(data);
 
-      // TODO 여기서 생성된 페이지로 이동
-      // router.push(`/mandalart/${data.id}`);
+      toast({
+        title: "만다라트 생성 완료!",
+        description: "목표 달성을 위한 첫 걸음을 내디뎠습니다.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
     } catch (error: any) {
-      console.error("에러 발생:", error);
-      alert("생성 실패: " + error.message);
+      toast({
+        title: "생성 실패",
+        description: error.message,
+        status: "error",
+      });
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
   };
 
-  if (!user) return <div className="p-10">로딩 중...</div>;
+  // Case 1: 로딩 중
+  if (loading) {
+    return (
+      <Center h="100vh" bg="gray.50">
+        <VStack spacing={4}>
+          <Spinner size="xl" color="blue.500" thickness="4px" />
+          <Text color="gray.500">데이터를 불러오는 중...</Text>
+        </VStack>
+      </Center>
+    );
+  }
 
+  // Case 2: 데이터가 있음 -> 만다라트 보드 화면
+  if (mandalart) {
+    return (
+      <Flex direction="column" align="center" minH="100vh" bg="gray.50" p={4}>
+        <VStack spacing={6} w="full" maxW="900px" py={10}>
+          <Heading size="lg" color="blue.700">
+            {mandalart.title}
+          </Heading>
+          {/* TODO: 데이터 props로 넘겨주기 */}
+          <MandalartBoard_9x9 data={mandalart} />
+        </VStack>
+      </Flex>
+    );
+  }
+
+  // Case 3: 데이터가 없음 -> 초기 화면
   return (
-    <div className="flex flex-col items-center justify-center h-screen gap-6">
-      <h1 className="text-4xl font-bold">환영합니다, {user.email}님</h1>
-
-      <button
-        onClick={handleCreateMandalart}
-        disabled={loading}
-        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition disabled:opacity-50"
+    <Center h="100vh" bg="gray.50" p={6}>
+      <VStack
+        spacing={8}
+        bg="white"
+        p={10}
+        borderRadius="xl"
+        boxShadow="lg"
+        maxW="md"
+        w="full"
       >
-        {loading ? "생성 중..." : "✨ 새 만다라트 만들기"}
-      </button>
+        <VStack spacing={2}>
+          <Heading size="xl" color="gray.800">
+            환영합니다!
+          </Heading>
+          <Text color="gray.500" fontSize="sm">
+            {user?.email}님
+          </Text>
+        </VStack>
 
-      <div className="mt-8 text-sm text-gray-400">
-        * 버튼을 누르면 DB에 데이터가 자동 생성되는지 테스트
-      </div>
-    </div>
+        <Text textAlign="center" color="gray.600">
+          아직 생성된 만다라트가 없습니다.
+          <br />
+          지금 바로 목표를 세워보세요.
+        </Text>
+
+        <Button
+          colorScheme="blue"
+          size="lg"
+          w="full"
+          onClick={handleCreateMandalart}
+          isLoading={creating}
+          loadingText="생성 중..."
+          _hover={{ transform: "translateY(-2px)", boxShadow: "md" }}
+        >
+          ✨ 새 만다라트 만들기
+        </Button>
+      </VStack>
+    </Center>
   );
 }
