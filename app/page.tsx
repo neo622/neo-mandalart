@@ -69,6 +69,7 @@ export default function Home() {
         }
 
         if (data) {
+          console.log("data", data);
           setMandalart(data);
         }
       } catch (e) {

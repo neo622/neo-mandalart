@@ -3,7 +3,7 @@
 import { Box, Grid, GridItem } from "@chakra-ui/react";
 import MandalartBlock_3x3 from "./MandalartBlock_3x3";
 
-// DB position을 그리드 영역으로 매핑
+// Position -> Grid Area 매핑
 const positionToAreaMap: { [key: number]: string } = {
   0: "nw",
   1: "n",
@@ -15,32 +15,37 @@ const positionToAreaMap: { [key: number]: string } = {
   7: "se",
 };
 
-// 임시
+// TODO: 타입 분리 필요
+interface SubCategory {
+  id: string;
+  title: string;
+  position: number;
+}
+interface MajorCategory {
+  id: string;
+  title: string;
+  position: number;
+  sub_categories: SubCategory[];
+}
+interface MandalartData {
+  id: string;
+  title: string;
+  major_categories: MajorCategory[];
+}
+
 interface MandalartBoardProps {
-  data?: any; // TODO: Supabase에서 가져온 실제 데이터 타입으로 교체
+  data: MandalartData; // DB 데이터
 }
 
 export default function MandalartBoard_9x9({ data }: MandalartBoardProps) {
-  // 임시 데이터
-  const dummyGoal = "NEO's 2026";
-  const dummyMajors = Array.from({ length: 8 }, (_, i) => ({
-    id: `m-${i}`,
-    title: `Major ${i}`,
-    position: i,
-  }));
-  const dummySubs = Array.from({ length: 64 }, (_, i) => ({
-    id: `s-${i}`,
-    title: `Sub ${i}`,
-    position: i % 8,
-    major_id: `m-${Math.floor(i / 8)}`,
-  }));
+  if (!data) return null;
 
   return (
     <Box
       w="100%"
       maxW="800px"
       aspectRatio={1 / 1}
-      bg="white"
+      bg="gray.100"
       boxShadow="xl"
       borderRadius="md"
       overflow="hidden"
@@ -58,32 +63,29 @@ export default function MandalartBoard_9x9({ data }: MandalartBoardProps) {
           "sw s se"
         `}
       >
-        {/* Goal + 8 Majors */}
+        {/* 정중앙 핵심 블록 (Goal Block)                  */}
+        {/* - 센터 텍스트: 만다라트 전체 제목 (Root Title)       */}
+        {/* - 주변 아이템: Major Categories (8개)              */}
         <GridItem area={"c"}>
           <MandalartBlock_3x3
-            centerTitle={dummyGoal}
-            surroundingItems={dummyMajors}
-            isMainCenterBlock={true}
+            centerTitle={data.title}
+            surroundingItems={data.major_categories}
+            isMainCenterBlock={true} // Goal Center
           />
         </GridItem>
 
-        {/* Major + 8 Subs */}
-        {dummyMajors.map((major) => {
-          // 해당 Major에 속한 Sub들만 필터링 (임시 로직)
-          const relatedSubs = dummySubs.filter(
-            (sub) => sub.major_id === major.id
-          );
-
-          return (
-            <GridItem key={major.id} area={positionToAreaMap[major.position]}>
-              <MandalartBlock_3x3
-                centerTitle={major.title}
-                surroundingItems={relatedSubs}
-                isMainCenterBlock={false}
-              />
-            </GridItem>
-          );
-        })}
+        {/* 주변 8개 확장 블록 (Major Category Blocks)          */}
+        {/* - 센터 텍스트: Major Category Title               */}
+        {/* - 주변 아이템: Sub Categories (64개)               */}
+        {data.major_categories.map((major) => (
+          <GridItem key={major.id} area={positionToAreaMap[major.position]}>
+            <MandalartBlock_3x3
+              centerTitle={major.title}
+              surroundingItems={major.sub_categories}
+              isMainCenterBlock={false}
+            />
+          </GridItem>
+        ))}
       </Grid>
     </Box>
   );

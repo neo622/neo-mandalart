@@ -19,16 +19,22 @@ export default function MandalartCell({
   let bgColor = "white";
   let textColor = "gray.700";
   let fontWeight = "normal";
+  let placeholder = "";
 
   if (isCenter) {
     bgColor = "blue.500";
     textColor = "white";
     fontWeight = "bold";
+    placeholder = "최종 목표";
   } else if (isMajorCenter) {
     bgColor = "blue.100";
     textColor = "blue.800";
     fontWeight = "semibold";
+    placeholder = "세부 목표";
   }
+
+  // title이 빈 문자열("")이면 placeholder를 보여줌
+  const displayTitle = title && title.trim() !== "" ? title : placeholder;
 
   return (
     <Flex
@@ -41,7 +47,7 @@ export default function MandalartCell({
       borderColor="gray.200"
       align="center"
       justify="center"
-      p={2}
+      p={1}
       h="100%"
       w="100%"
       cursor="pointer"
@@ -58,7 +64,7 @@ export default function MandalartCell({
         textAlign="center"
         noOfLines={3}
       >
-        {title || (isCenter || isMajorCenter ? "목표 입력" : "")}
+        {displayTitle}
       </Text>
     </Flex>
   );

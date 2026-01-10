@@ -15,15 +15,21 @@ const positionToAreaMap: { [key: number]: string } = {
   7: "se",
 };
 
+interface CellItem {
+  id: string;
+  title: string;
+  position: number;
+}
+
 interface MandalartBlockProps {
-  centerTitle?: string; // 가운데 들어갈 제목
-  surroundingItems?: { id: string; title: string; position: number }[]; // 주변 8개 데이터
-  isMainCenterBlock?: boolean; // 가운데 Block인지
+  centerTitle: string; // 가운데 들어갈 텍스트
+  surroundingItems: CellItem[]; // 주변 8개 데이터
+  isMainCenterBlock?: boolean; // 이게 정중앙 블록인지
 }
 
 export default function MandalartBlock_3x3({
   centerTitle,
-  surroundingItems = [],
+  surroundingItems,
   isMainCenterBlock = false,
 }: MandalartBlockProps) {
   return (
@@ -54,7 +60,11 @@ export default function MandalartBlock_3x3({
       {/* 주변 8개 셀 */}
       {surroundingItems.map((item) => (
         <GridItem key={item.id} area={positionToAreaMap[item.position]}>
-          <MandalartCell title={item.title} />
+          <MandalartCell
+            title={item.title}
+            // 중앙 블록의 주변부라면 -> 그것은 Major Center임
+            isMajorCenter={isMainCenterBlock}
+          />
         </GridItem>
       ))}
 
