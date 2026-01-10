@@ -3,7 +3,6 @@
 import { Grid, GridItem } from "@chakra-ui/react";
 import MandalartCell from "./MandalartCell";
 
-// DB의 position (0~7)을 그리드 영역 이름으로 매핑
 const positionToAreaMap: { [key: number]: string } = {
   0: "nw",
   1: "n",
@@ -22,16 +21,32 @@ interface CellItem {
 }
 
 interface MandalartBlockProps {
-  centerTitle: string; // 가운데 들어갈 텍스트
-  surroundingItems: CellItem[]; // 주변 8개 데이터
-  isMainCenterBlock?: boolean; // 이게 정중앙 블록인지
+  centerId: string;
+  centerTitle: string;
+  surroundingItems: CellItem[];
+  isMainCenterBlock?: boolean;
+  onCellClick: (
+    id: string,
+    type: "GOAL" | "MAJOR" | "SUB",
+    title: string
+  ) => void;
 }
 
 export default function MandalartBlock_3x3({
+  centerId,
   centerTitle,
   surroundingItems,
   isMainCenterBlock = false,
+  onCellClick,
 }: MandalartBlockProps) {
+  // 센터 셀 클릭 시
+  const handleCenterClick = () => {
+    // MainCenterBlock의 센터 = GOAL
+    // 아니라면 = MAJOR
+    const type = isMainCenterBlock ? "GOAL" : "MAJOR";
+    onCellClick(centerId, type, centerTitle);
+  };
+
   return (
     <Grid
       h="100%"
@@ -41,12 +56,7 @@ export default function MandalartBlock_3x3({
       gap={0}
       border={isMainCenterBlock ? "2px solid" : "1px solid"}
       borderColor={isMainCenterBlock ? "blue.400" : "gray.300"}
-      // 3x3 그리드 영역 정의
-      templateAreas={`
-        "nw n ne"
-        "w  c  e"
-        "sw s se"
-      `}
+      templateAreas={`"nw n ne" "w  c  e" "sw s se"`}
     >
       {/* 가운데 셀 */}
       <GridItem area={"c"}>
@@ -54,6 +64,7 @@ export default function MandalartBlock_3x3({
           title={centerTitle}
           isCenter={isMainCenterBlock}
           isMajorCenter={!isMainCenterBlock}
+          onClick={handleCenterClick}
         />
       </GridItem>
 
@@ -62,8 +73,11 @@ export default function MandalartBlock_3x3({
         <GridItem key={item.id} area={positionToAreaMap[item.position]}>
           <MandalartCell
             title={item.title}
-            // 중앙 블록의 주변부라면 -> 그것은 Major Center임
             isMajorCenter={isMainCenterBlock}
+            onClick={() => {
+              const type = isMainCenterBlock ? "MAJOR" : "SUB";
+              onCellClick(item.id, type, item.title);
+            }}
           />
         </GridItem>
       ))}

@@ -12,15 +12,10 @@ import {
   Button,
   Center,
   useToast,
+  Box,
 } from "@chakra-ui/react";
 import MandalartBoard_9x9 from "@/components/mandalart/MandalartBoard_9x9";
-
-// 데이터 타입 정의 (TODO: types 폴더로 빼기)
-interface MandalartData {
-  id: string;
-  title: string;
-  major_categories: any[];
-}
+import { MandalartData } from "@/types/mandalart";
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -32,7 +27,38 @@ export default function Home() {
   const supabase = createClient();
   const toast = useToast();
 
-  // 초기 진입 시 로그인 체크 & DB 데이터 조회
+  const fetchMandalartData = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("mandalarts")
+        .select(
+          `
+          *,
+          major_categories (
+            *,
+            sub_categories (*)
+          )
+        `
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("데이터 조회 에러:", error);
+        return;
+      }
+
+      if (data) {
+        console.log("Mandalart Data Loaded:", data);
+        setMandalart(data as MandalartData);
+      }
+    } catch (e) {
+      console.error("fetchMandalartData Error:", e);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -42,36 +68,15 @@ export default function Home() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+
         if (!user) {
           router.replace("/login");
           return;
         }
         setUser(user);
 
-        // 만다라트 데이터 확인
-        // major_categories와 sub_categories를 한 번에 가져옴
-        const { data, error } = await supabase
-          .from("mandalarts")
-          .select(
-            `
-            *,
-            major_categories (
-              *,
-              sub_categories (*)
-            )
-          `
-          )
-          .eq("user_id", user.id)
-          .single(); // 하나만 가져옴
-
-        if (error && error.code !== "PGRST116") {
-          console.error("데이터 조회 에러:", error);
-        }
-
-        if (data) {
-          console.log("data", data);
-          setMandalart(data);
-        }
+        // 데이터 가져오기
+        await fetchMandalartData(user.id);
       } catch (e) {
         console.error("초기화 중 에러:", e);
       } finally {
@@ -82,13 +87,33 @@ export default function Home() {
     init();
   }, [router, supabase]);
 
+  const handleRefresh = async () => {
+    if (user?.id) {
+      await fetchMandalartData(user.id);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "로그아웃 되었습니다.",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+      router.replace("/login");
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
+  };
+
   // 만다라트 생성 핸들러
   const handleCreateMandalart = async () => {
     if (!user) return;
     setCreating(true);
 
     try {
-      // 메인 만다라트 생성 (DB 트리거가 나머지 데이터 자동 생성)
       const { data, error } = await supabase
         .from("mandalarts")
         .insert({
@@ -102,7 +127,7 @@ export default function Home() {
               *,
               sub_categories (*)
             )
-          `
+        `
         )
         .single();
 
@@ -127,6 +152,20 @@ export default function Home() {
       setCreating(false);
     }
   };
+  const LogoutButton = () => (
+    <Button
+      position="absolute"
+      top={4}
+      right={4}
+      size="sm"
+      colorScheme="gray"
+      variant="ghost"
+      onClick={handleLogout}
+      zIndex={10} // 다른 요소보다 위에 오도록
+    >
+      로그아웃
+    </Button>
+  );
 
   // Case 1: 로딩 중
   if (loading) {
@@ -143,13 +182,24 @@ export default function Home() {
   // Case 2: 데이터가 있음 -> 만다라트 보드 화면
   if (mandalart) {
     return (
-      <Flex direction="column" align="center" minH="100vh" bg="gray.50" p={4}>
-        <VStack spacing={6} w="full" maxW="900px" py={10}>
+      <Flex
+        direction="column"
+        align="center"
+        justify="center"
+        h="100vh"
+        overflow="hidden"
+        bg="gray.50"
+        p={4}
+        position="relative"
+      >
+        <LogoutButton />
+
+        <VStack spacing={6} w="full" maxW="900px" h="full" justify="center">
           <Heading size="lg" color="blue.700">
             {mandalart.title}
           </Heading>
-          {/* TODO: 데이터 props로 넘겨주기 */}
-          <MandalartBoard_9x9 data={mandalart} />
+
+          <MandalartBoard_9x9 data={mandalart} onRefresh={handleRefresh} />
         </VStack>
       </Flex>
     );
@@ -157,7 +207,8 @@ export default function Home() {
 
   // Case 3: 데이터가 없음 -> 초기 화면
   return (
-    <Center h="100vh" bg="gray.50" p={6}>
+    <Center h="100vh" bg="gray.50" p={6} position="relative">
+      <LogoutButton />
       <VStack
         spacing={8}
         bg="white"
